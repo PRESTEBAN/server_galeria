@@ -23,6 +23,7 @@ admin.initializeApp({
     "client_x509_cert_url": process.env.FIREBASE_CLIENT_X509_CERT_URL,
     "universe_domain": process.env.FIREBASE_UNIVERSE_DOMAIN
   }),
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET
 });
 
 app.post('/send-notification', async (req, res) => {
@@ -56,6 +57,40 @@ app.post('/send-notification', async (req, res) => {
   } catch (error) {
     console.error('Error sending message:', error);
     res.status(500).send(`Error sending notification: ${error.message}`);
+  }
+});
+
+const bucket = admin.storage().bucket();
+
+app.get('/get-image-url', async (req, res) => {
+  try {
+    let { imagePath } = req.query;
+
+    if (!imagePath) {
+      return res.status(400).json({ error: 'Missing imagePath parameter' });
+    }
+
+    // 🔹 Decodificar el imagePath correctamente
+    imagePath = decodeURIComponent(imagePath);
+
+    // 🔹 Verificar si el archivo existe en Firebase Storage
+    const file = bucket.file(imagePath);
+    const [exists] = await file.exists();
+    if (!exists) {
+      return res.status(404).json({ error: 'File not found in Firebase Storage' });
+    }
+
+    // 🔹 Generar la URL firmada
+    const [url] = await file.getSignedUrl({
+      action: 'read',
+      expires: Date.now() + 60 * 60 * 1000, // URL válida por 1 hora
+    });
+
+    res.json({ url });
+
+  } catch (error) {
+    console.error('Error generating signed URL:', error);
+    res.status(500).json({ error: 'Error generating signed URL' });
   }
 });
 
