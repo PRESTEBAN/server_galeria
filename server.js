@@ -65,32 +65,47 @@ const bucket = admin.storage().bucket();
 app.get('/get-image-url', async (req, res) => {
   try {
     let { imagePath } = req.query;
-
     if (!imagePath) {
       return res.status(400).json({ error: 'Missing imagePath parameter' });
     }
-
-    // 🔹 Decodificar el imagePath correctamente
     imagePath = decodeURIComponent(imagePath);
-
-    // 🔹 Verificar si el archivo existe en Firebase Storage
     const file = bucket.file(imagePath);
     const [exists] = await file.exists();
     if (!exists) {
       return res.status(404).json({ error: 'File not found in Firebase Storage' });
     }
-
-    // 🔹 Generar la URL firmada
     const [url] = await file.getSignedUrl({
       action: 'read',
-      expires: Date.now() + 60 * 60 * 1000, // URL válida por 1 hora
+      expires: Date.now() + 60 * 60 * 1000,
     });
-
     res.json({ url });
-
   } catch (error) {
     console.error('Error generating signed URL:', error);
     res.status(500).json({ error: 'Error generating signed URL' });
+  }
+});
+
+// NUEVO: Endpoint para descargar la imagen (proxy)
+app.get('/download-image', async (req, res) => {
+  try {
+    let { imagePath } = req.query;
+    if (!imagePath) {
+      return res.status(400).json({ error: 'Missing imagePath parameter' });
+    }
+    // Decodificar la ruta
+    imagePath = decodeURIComponent(imagePath);
+    const file = bucket.file(imagePath);
+    const [exists] = await file.exists();
+    if (!exists) {
+      return res.status(404).json({ error: 'File not found in Firebase Storage' });
+    }
+    // Establece el content type; si sabes el tipo de imagen, por ejemplo image/jpeg
+    res.setHeader('Content-Type', 'image/jpeg');
+    // Crear un stream y pipearlo a la respuesta
+    file.createReadStream().pipe(res);
+  } catch (error) {
+    console.error('Error downloading image:', error);
+    res.status(500).json({ error: 'Error downloading image' });
   }
 });
 
